@@ -1,0 +1,7 @@
+crawl4ai
+playwright
+beautifulsoup4
+lxml
+pydantic
+pytest
+pytest-asyncio
