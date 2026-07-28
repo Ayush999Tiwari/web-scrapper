@@ -6,8 +6,11 @@ from engines.crawl4ai_engine import scrape_with_crawl4ai
 from engines.playwright_engine import scrape_with_playwright
 from schemas.response_schema import ScrapeResult, ScrapeStatus, EngineUsed
 from utils.content_cleaner import clean_content
+from utils.content_analytics import count_emails, count_phones, count_pdfs, categorize_error
 from utils.logger import get_logger
+
 logger = get_logger(__name__)
+
 UI_PHRASES = [
     "skip to main content",
     "skip navigation",
@@ -23,12 +26,16 @@ UI_PHRASES = [
 ]
 MAX_RETRIES = 3
 RETRY_DELAY = 2
+
+
 def _compute_score(result: ScrapeResult) -> float:
     content = result.content or ""
     title = result.title
     lower = content.lower()
     bad_hits = sum(1 for p in UI_PHRASES if p in lower)
     return compute_quality_score(content, title, bad_hits)
+
+
 async def _run_crawl4ai_with_retry(url: str) -> ScrapeResult:
     result = None
     for attempt in range(1, MAX_RETRIES + 1):
@@ -41,10 +48,12 @@ async def _run_crawl4ai_with_retry(url: str) -> ScrapeResult:
         if attempt < MAX_RETRIES:
             logger.warning(f"[Orchestrator] Attempt {attempt} failed — retrying in {RETRY_DELAY}s")
             await asyncio.sleep(RETRY_DELAY)
-    return result # type: ignore
+    return result  # type: ignore
+
+
 async def scrape_url(url: str) -> ScrapeResult:
     start_time = time.perf_counter()
-    logger.info(f"[Orchestrator] -> START — url: {url}")    
+    logger.info(f"[Orchestrator] -> START — url: {url}")
     try:
         url = validate_url(url)
     except URLValidationError as e:
@@ -53,15 +62,25 @@ async def scrape_url(url: str) -> ScrapeResult:
             url=url,
             status=ScrapeStatus.FAILED,
             engine_used=EngineUsed.NONE,
-            error_message=f"Invalid URL: {e}"
+            error_message=f"Invalid URL: {e}",
+            error_type=categorize_error(f"Invalid URL: {e}"),
         )
+
     result = await _run_crawl4ai_with_retry(url)
-    score  = _compute_score(result)
+    score = _compute_score(result)
+
     if score >= 75 and result.status != ScrapeStatus.FAILED:
         result.engine_used = EngineUsed.CRAWL4AI
         result.content = clean_content(result.content or "")
         result.content_length = len(result.content)
+        result.emails_found = count_emails(result.content)
+        result.phones_found = count_phones(result.content)
+        result.links_count = len(result.links)
+        result.pdfs_count = count_pdfs(result.links)
         elapsed = round(time.perf_counter() - start_time, 2)
+        result.crawl_time_seconds = elapsed
+        if result.status != ScrapeStatus.SUCCESS:
+            result.error_type = categorize_error(result.error_message)
         logger.info(
             f"[Orchestrator]  END — "
             f"engine: crawl4ai | "
@@ -70,6 +89,7 @@ async def scrape_url(url: str) -> ScrapeResult:
             f"time: {elapsed}s"
         )
         return result
+
     logger.warning(
         f"[Orchestrator] All Crawl4AI attempts failed — "
         f"falling back to Playwright"
@@ -78,11 +98,19 @@ async def scrape_url(url: str) -> ScrapeResult:
     fallback_result.engine_used = EngineUsed.PLAYWRIGHT
     fallback_result.content = clean_content(fallback_result.content or "")
     fallback_result.content_length = len(fallback_result.content)
+    fallback_result.emails_found = count_emails(fallback_result.content)
+    fallback_result.phones_found = count_phones(fallback_result.content)
+    fallback_result.links_count = len(fallback_result.links)
+    fallback_result.pdfs_count = count_pdfs(fallback_result.links)
     elapsed = round(time.perf_counter() - start_time, 2)
+    fallback_result.crawl_time_seconds = elapsed
+
     if fallback_result.is_usable():
         logger.info(f"[Orchestrator] Playwright succeeded for: {url}")
     else:
         logger.error(f"[Orchestrator] Both engines failed for: {url}")
+        fallback_result.error_type = categorize_error(fallback_result.error_message)
+
     logger.info(
         f"[Orchestrator]  END — "
         f"engine: playwright | "
@@ -91,4 +119,3 @@ async def scrape_url(url: str) -> ScrapeResult:
         f"time: {elapsed}s"
     )
     return fallback_result
-   

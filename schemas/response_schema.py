@@ -9,6 +9,7 @@ class ScrapeStatus(str, Enum):
     SUCCESS = "success"  
     PARTIAL = "partial"  
     FAILED  = "failed"   
+
 class ScrapeResult(BaseModel):
     url : str
     status : ScrapeStatus
@@ -19,6 +20,14 @@ class ScrapeResult(BaseModel):
     links : list[str] = []
     content_length : int = 0
     error_message : str | None = None
+    crawl_time_seconds: float = 0.0 
+    images_count: int = 0                  
+    tables_count: int = 0                 
+    emails_found: int = 0                 
+    phones_found: int = 0             
+    links_count: int = 0     
+    pdfs_count: int = 0     
+    error_type: str | None = None
 
     def is_usable(self) -> bool:
         return (

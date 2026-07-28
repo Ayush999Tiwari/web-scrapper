@@ -4,7 +4,9 @@ from playwright.async_api import async_playwright, TimeoutError as PWTimeout
 from bs4 import BeautifulSoup
 from schemas.response_schema import ScrapeResult, ScrapeStatus, EngineUsed
 from utils.logger import get_logger
+
 logger = get_logger(__name__)
+
 def extract_metadata(html: str, base_url: str) -> tuple[dict, list[str]]:
     soup = BeautifulSoup(html, "lxml")
     metadata = {}
@@ -42,6 +44,7 @@ def extract_metadata(html: str, base_url: str) -> tuple[dict, list[str]]:
                 links.append(full_url)
     links = list(dict.fromkeys(links))
     return metadata, links[:50]
+
 async def scrape_with_playwright(
     url: str,
     timeout: int = 30,
@@ -111,7 +114,7 @@ async def scrape_with_playwright(
                 title = await page.title()
                 logger.info(f"[Playwright] Raw HTML size: {len(html)}")
             finally:
-                await browser.close()              
+                await browser.close()
         metadata, links = extract_metadata(html, url)
         logger.info(
             f"[Playwright] Metadata keys: {list(metadata.keys())}"
@@ -120,6 +123,8 @@ async def scrape_with_playwright(
             f"[Playwright] Links extracted: {len(links)}"
         )
         soup = BeautifulSoup(html, "lxml")
+        images_count = len(soup.find_all("img"))    # before decompose — real tag counts
+        tables_count = len(soup.find_all("table"))
         for tag in soup(
             [
                 "script",
@@ -140,7 +145,10 @@ async def scrape_with_playwright(
             lines.append(line)
         content = "\n".join(lines)
         content_length = len(content)
-        logger.info(f"[Playwright] Cleaned text length: {content_length}")
+        logger.info(
+            f"[Playwright] Cleaned text length: {content_length} | "
+            f"images: {images_count} | tables: {tables_count}"
+        )
         if not content:
             return ScrapeResult(
                 url=url,
@@ -160,6 +168,8 @@ async def scrape_with_playwright(
                 content_length=content_length,
                 metadata=metadata,
                 links=links,
+                images_count=images_count,
+                tables_count=tables_count,
                 error_message="Low content after render",
             )
         return ScrapeResult(
@@ -171,6 +181,8 @@ async def scrape_with_playwright(
             content_length=content_length,
             metadata=metadata,
             links=links,
+            images_count=images_count,
+            tables_count=tables_count,
         )
     except Exception as e:
         logger.error(f"[Playwright] Error: {e}")

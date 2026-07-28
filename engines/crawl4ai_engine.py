@@ -2,8 +2,10 @@ import asyncio
 from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
 from schemas.response_schema import ScrapeResult, ScrapeStatus, EngineUsed
 from utils.logger import get_logger
+from utils.content_analytics import count_images, count_tables
 
 logger = get_logger(__name__)
+
 async def scrape_with_crawl4ai(
     url: str,
     timeout: int = 30,
@@ -16,7 +18,7 @@ async def scrape_with_crawl4ai(
         run_config = CrawlerRunConfig(
             cache_mode=CacheMode.BYPASS,
             page_timeout=timeout * 1000,
-            wait_until="networkidle",
+            wait_until="domcontentloaded",
             scan_full_page=scroll_page,
             word_count_threshold=10,
         )
@@ -58,6 +60,9 @@ async def scrape_with_crawl4ai(
         content = content.strip()
         content_lower = content.lower()
         content_length = len(content)
+        images_count = count_images(content)   # raw markdown, before cleaning
+        tables_count = count_tables(content)
+
         BAD_UI_PHRASES = [
             "skip to main content",
             "open menu",
@@ -77,6 +82,8 @@ async def scrape_with_crawl4ai(
                 metadata=metadata,
                 links=links,
                 content_length=content_length,
+                images_count=images_count,
+                tables_count=tables_count,
                 error_message="UI/navigation-heavy content detected — likely JS page",
             )
         if content_length < min_content_length:
@@ -90,6 +97,8 @@ async def scrape_with_crawl4ai(
                 metadata=metadata,
                 links=links,
                 content_length=content_length,
+                images_count=images_count,
+                tables_count=tables_count,
                 error_message="Content too short — JS rendered page likely",
             )
         if not title and content_length < 500:
@@ -103,6 +112,8 @@ async def scrape_with_crawl4ai(
                 metadata=metadata,
                 links=links,
                 content_length=content_length,
+                images_count=images_count,
+                tables_count=tables_count,
                 error_message="No title and very little content — possible boilerplate page",
             )
         BOILERPLATE_PHRASES = [
@@ -124,6 +135,8 @@ async def scrape_with_crawl4ai(
                 metadata=metadata,
                 links=links,
                 content_length=content_length,
+                images_count=images_count,
+                tables_count=tables_count,
                 error_message="Boilerplate or cookie banner detected — JS rendered page likely",
             )
 
@@ -131,6 +144,7 @@ async def scrape_with_crawl4ai(
             f"[Crawl4AI] Success — "
             f"content_length: {content_length} | "
             f"links: {len(links)} | "
+            f"images: {images_count} | tables: {tables_count} | "
             f"metadata keys: {list(metadata.keys())}"
         )
 
@@ -143,6 +157,8 @@ async def scrape_with_crawl4ai(
             metadata=metadata,
             links=links,
             content_length=content_length,
+            images_count=images_count,
+            tables_count=tables_count,
         )
 
     except asyncio.TimeoutError:
