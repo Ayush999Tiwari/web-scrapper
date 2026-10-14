@@ -25,3 +25,4 @@ python-dotenv
 jose
 passlib
 itsdangerous
+pydantic-settings
