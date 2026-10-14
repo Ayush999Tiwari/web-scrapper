@@ -3,7 +3,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, case
 from database.models import ScrapeJob
 
-# ✅ FIX: Helper function jo hamesha timezone-naive datetime return karega
 def get_start_date(range_str: str) -> datetime:
     # .replace(tzinfo=None) lagane se yeh PostgreSQL ke "TIMESTAMP WITHOUT TIME ZONE" se perfectly match karega
     now = datetime.now(timezone.utc).replace(tzinfo=None)

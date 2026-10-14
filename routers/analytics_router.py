@@ -17,7 +17,6 @@ async def trends(range: str = RangeParam, db: AsyncSession = Depends(get_db)):
 
 @router.get("/engines")
 async def engines(range: str = RangeParam, db: AsyncSession = Depends(get_db)):
-    # ✅ FIX: Naam change kiya taaki analytics_crud.py se match kare
     return await crud.get_engine_stats(db, range)
 
 @router.get("/top-domains")
