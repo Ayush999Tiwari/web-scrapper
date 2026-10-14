@@ -26,3 +26,4 @@ jose
 passlib
 itsdangerous
 pydantic-settings
+asyncpg
