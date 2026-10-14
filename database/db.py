@@ -5,7 +5,7 @@ settings = get_settings()
 DATABASE_URL = settings.DATABASE_URL
 engine = create_async_engine(DATABASE_URL, echo=False)
 AsyncSessionLocal = sessionmaker( 
-    bind=engine, # type: ignore
+    bind=engine, # type: ignoreg
     class_=AsyncSession,
     expire_on_commit=False
 ) # type: ignore
